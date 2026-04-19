@@ -1,0 +1,510 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+
+<div class="page-stack">
+    <div class="card">
+        <h2>Upload Resume PDF</h2>
+
+        <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="extract_pdf" />
+
+            <label for="resume_pdf">Resume PDF</label>
+            <input type="file" id="resume_pdf" name="resume_pdf" accept=".pdf" />
+
+            <div class="button-row">
+                <button type="submit" class="secondary">Upload &amp; Extract</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>Generate Application Materials</h2>
+
+        <form method="POST" data-loading-form="true" data-loading-text="Generating...">
+            <input type="hidden" name="current_job_title" value="{{ job_title or '' }}">
+            <input type="hidden" name="current_company_name" value="{{ company_name or '' }}">
+            <input type="hidden" name="current_tailored_bullets" value="{{ tailored_bullets or '' }}">
+            <input type="hidden" name="current_cover_letter" value="{{ cover_letter or '' }}">
+            <input type="hidden" name="extracted_resume_preview" value="{{ extracted_resume_preview or '' }}">
+            <input type="hidden" name="previous_versions_json" value='{{ previous_versions|tojson|e }}'>
+
+            <div class="form-group">
+                <label for="resume_text">Resume Text</label>
+                <textarea id="resume_text" name="resume_text">{{ resume_text }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="job_posting">Job Posting</label>
+                <textarea id="job_posting" name="job_posting">{{ job_posting }}</textarea>
+            </div>
+
+            <div class="button-row">
+                <button type="submit" name="action" value="generate" data-loading-button="true">
+                    Generate
+                </button>
+
+                {% if tailored_bullets or cover_letter %}
+                <button type="submit" name="action" value="regenerate" class="secondary">
+                    Regenerate
+                </button>
+                {% endif %}
+
+                {% if previous_versions %}
+                <button
+                    type="button"
+                    class="danger-button"
+                    onclick="openConfirmModal({
+                        title: 'Clear previous versions?',
+                        message: 'This will remove all previous versions from the page. Your current version and saved database history will stay intact.',
+                        confirmText: 'Clear Versions',
+                        formId: 'clear_versions_form'
+                    }, this)"
+                >
+                    Clear Versions
+                </button>
+                {% endif %}
+            </div>
+
+            <div class="help-text">
+                Paste complete resume text and a reasonably complete job posting for the best results.
+            </div>
+        </form>
+
+        {% if previous_versions %}
+        <form method="POST" id="clear_versions_form" class="hidden-action-form">
+            <input type="hidden" name="action" value="clear_versions">
+            <input type="hidden" name="resume_text" value="{{ resume_text or '' }}">
+            <input type="hidden" name="job_posting" value="{{ job_posting or '' }}">
+            <input type="hidden" name="current_job_title" value="{{ job_title or '' }}">
+            <input type="hidden" name="current_company_name" value="{{ company_name or '' }}">
+            <input type="hidden" name="current_tailored_bullets" value="{{ tailored_bullets or '' }}">
+            <input type="hidden" name="current_cover_letter" value="{{ cover_letter or '' }}">
+            <input type="hidden" name="extracted_resume_preview" value="{{ extracted_resume_preview or '' }}">
+            <input type="hidden" name="previous_versions_json" value='{{ previous_versions|tojson|e }}'>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if extracted_resume_preview %}
+    <div class="card">
+        <div class="section-header">
+            <h2>Extracted Resume Preview</h2>
+            <button
+                type="button"
+                class="copy-button"
+                data-original-text="Copy"
+                onclick="copyFromElement('extracted_resume_preview', this)"
+            >
+                Copy
+            </button>
+        </div>
+        <div id="extracted_resume_preview" class="results-box">{{ extracted_resume_preview }}</div>
+    </div>
+    {% endif %}
+
+    {% if tailored_bullets or cover_letter %}
+    <div class="job-target-banner">
+        <div class="job-target-item">
+            <span class="job-target-label">Detected Job Title</span>
+            <span class="job-target-value">{{ job_title or "Not detected" }}</span>
+        </div>
+        <div class="job-target-item">
+            <span class="job-target-label">Detected Company</span>
+            <span class="job-target-value">{{ company_name or "Not detected" }}</span>
+        </div>
+    </div>
+
+    <div class="card export-card">
+        <div class="section-header">
+            <h2>Export Current Version</h2>
+        </div>
+
+        <form method="POST" class="export-form">
+            <input type="hidden" name="resume_text" value="{{ resume_text or '' }}">
+            <input type="hidden" name="job_posting" value="{{ job_posting or '' }}">
+            <input type="hidden" name="current_job_title" value="{{ job_title or '' }}">
+            <input type="hidden" name="current_company_name" value="{{ company_name or '' }}">
+            <input type="hidden" name="current_tailored_bullets" value="{{ tailored_bullets or '' }}">
+            <input type="hidden" name="current_cover_letter" value="{{ cover_letter or '' }}">
+            <input type="hidden" name="extracted_resume_preview" value="{{ extracted_resume_preview or '' }}">
+            <input type="hidden" name="previous_versions_json" value='{{ previous_versions|tojson|e }}'>
+
+            <div class="button-row">
+                <button type="submit" name="action" value="export_docx" class="export-button">
+                    Export DOCX
+                </button>
+                <button type="submit" name="action" value="export_pdf" class="export-button secondary">
+                    Export PDF
+                </button>
+            </div>
+
+            <div class="help-text">
+                Exports the current detected role, tailored bullets, and cover letter.
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if tailored_bullets %}
+    <div class="card">
+        <div class="section-header">
+            <h2>Current Tailored Bullets</h2>
+            <button
+                type="button"
+                class="copy-button"
+                data-original-text="Copy"
+                onclick="copyFromElement('tailored_bullets', this)"
+            >
+                Copy
+            </button>
+        </div>
+        <div id="tailored_bullets" class="results-box">{{ tailored_bullets }}</div>
+    </div>
+    {% endif %}
+
+    {% if cover_letter %}
+    <div class="card">
+        <div class="section-header">
+            <h2>Current Cover Letter</h2>
+            <button
+                type="button"
+                class="copy-button"
+                data-original-text="Copy"
+                onclick="copyFromElement('cover_letter', this)"
+            >
+                Copy
+            </button>
+        </div>
+        <div id="cover_letter" class="results-box">{{ cover_letter }}</div>
+    </div>
+    {% endif %}
+
+    {% if previous_versions %}
+    <div class="card">
+        <div class="section-header">
+            <h2>Previous Versions</h2>
+            <span class="version-count">{{ previous_versions|length }} saved on page</span>
+        </div>
+
+        {% for version in previous_versions %}
+        <div class="version-block">
+            <div class="version-header">
+                <div class="version-title-row">
+                    <h3>Version {{ previous_versions|length - loop.index0 }}</h3>
+                    {% if version.note %}
+                    <span class="version-note-badge">{{ version.note }}</span>
+                    {% endif %}
+                </div>
+
+                <div class="version-meta">
+                    <span><strong>Job:</strong> {{ version.job_title or "Not detected" }}</span>
+                    <span><strong>Company:</strong> {{ version.company_name or "Not detected" }}</span>
+                </div>
+            </div>
+
+            <form method="POST" class="version-note-form">
+                <input type="hidden" name="action" value="save_version_note">
+                <input type="hidden" name="selected_version_index" value="{{ loop.index0 }}">
+                <input type="hidden" name="resume_text" value="{{ resume_text or '' }}">
+                <input type="hidden" name="job_posting" value="{{ job_posting or '' }}">
+                <input type="hidden" name="current_job_title" value="{{ job_title or '' }}">
+                <input type="hidden" name="current_company_name" value="{{ company_name or '' }}">
+                <input type="hidden" name="current_tailored_bullets" value="{{ tailored_bullets or '' }}">
+                <input type="hidden" name="current_cover_letter" value="{{ cover_letter or '' }}">
+                <input type="hidden" name="extracted_resume_preview" value="{{ extracted_resume_preview or '' }}">
+                <input type="hidden" name="previous_versions_json" value='{{ previous_versions|tojson|e }}'>
+
+                <label for="version_note_{{ loop.index0 }}" class="note-label">Version Note / Label</label>
+                <div class="version-note-row">
+                    <input
+                        type="text"
+                        id="version_note_{{ loop.index0 }}"
+                        name="version_note"
+                        class="version-note-input"
+                        placeholder="Example: Best cover letter"
+                        value="{{ version.note or '' }}"
+                        maxlength="120"
+                    />
+                    <button type="submit" class="save-note-button">Save Note</button>
+                </div>
+            </form>
+
+            <div class="version-actions">
+                <form method="POST" class="inline-action-form">
+                    <input type="hidden" name="action" value="use_version">
+                    <input type="hidden" name="selected_version_index" value="{{ loop.index0 }}">
+                    <input type="hidden" name="resume_text" value="{{ resume_text or '' }}">
+                    <input type="hidden" name="job_posting" value="{{ job_posting or '' }}">
+                    <input type="hidden" name="current_job_title" value="{{ job_title or '' }}">
+                    <input type="hidden" name="current_company_name" value="{{ company_name or '' }}">
+                    <input type="hidden" name="current_tailored_bullets" value="{{ tailored_bullets or '' }}">
+                    <input type="hidden" name="current_cover_letter" value="{{ cover_letter or '' }}">
+                    <input type="hidden" name="extracted_resume_preview" value="{{ extracted_resume_preview or '' }}">
+                    <input type="hidden" name="previous_versions_json" value='{{ previous_versions|tojson|e }}'>
+
+                    <button type="submit" class="use-version-button">
+                        Use This Version
+                    </button>
+                </form>
+
+                <form method="POST" class="inline-action-form">
+                    <input type="hidden" name="action" value="export_selected_docx">
+                    <input type="hidden" name="selected_version_index" value="{{ loop.index0 }}">
+                    <input type="hidden" name="resume_text" value="{{ resume_text or '' }}">
+                    <input type="hidden" name="job_posting" value="{{ job_posting or '' }}">
+                    <input type="hidden" name="current_job_title" value="{{ job_title or '' }}">
+                    <input type="hidden" name="current_company_name" value="{{ company_name or '' }}">
+                    <input type="hidden" name="current_tailored_bullets" value="{{ tailored_bullets or '' }}">
+                    <input type="hidden" name="current_cover_letter" value="{{ cover_letter or '' }}">
+                    <input type="hidden" name="extracted_resume_preview" value="{{ extracted_resume_preview or '' }}">
+                    <input type="hidden" name="previous_versions_json" value='{{ previous_versions|tojson|e }}'>
+
+                    <button type="submit" class="export-button">
+                        Export DOCX
+                    </button>
+                </form>
+
+                <form method="POST" class="inline-action-form">
+                    <input type="hidden" name="action" value="export_selected_pdf">
+                    <input type="hidden" name="selected_version_index" value="{{ loop.index0 }}">
+                    <input type="hidden" name="resume_text" value="{{ resume_text or '' }}">
+                    <input type="hidden" name="job_posting" value="{{ job_posting or '' }}">
+                    <input type="hidden" name="current_job_title" value="{{ job_title or '' }}">
+                    <input type="hidden" name="current_company_name" value="{{ company_name or '' }}">
+                    <input type="hidden" name="current_tailored_bullets" value="{{ tailored_bullets or '' }}">
+                    <input type="hidden" name="current_cover_letter" value="{{ cover_letter or '' }}">
+                    <input type="hidden" name="extracted_resume_preview" value="{{ extracted_resume_preview or '' }}">
+                    <input type="hidden" name="previous_versions_json" value='{{ previous_versions|tojson|e }}'>
+
+                    <button type="submit" class="export-button secondary">
+                        Export PDF
+                    </button>
+                </form>
+
+                <form method="POST" class="inline-action-form" id="delete_version_form_{{ loop.index0 }}">
+                    <input type="hidden" name="action" value="delete_version">
+                    <input type="hidden" name="selected_version_index" value="{{ loop.index0 }}">
+                    <input type="hidden" name="resume_text" value="{{ resume_text or '' }}">
+                    <input type="hidden" name="job_posting" value="{{ job_posting or '' }}">
+                    <input type="hidden" name="current_job_title" value="{{ job_title or '' }}">
+                    <input type="hidden" name="current_company_name" value="{{ company_name or '' }}">
+                    <input type="hidden" name="current_tailored_bullets" value="{{ tailored_bullets or '' }}">
+                    <input type="hidden" name="current_cover_letter" value="{{ cover_letter or '' }}">
+                    <input type="hidden" name="extracted_resume_preview" value="{{ extracted_resume_preview or '' }}">
+                    <input type="hidden" name="previous_versions_json" value='{{ previous_versions|tojson|e }}'>
+
+                    <button
+                        type="button"
+                        class="delete-version-button"
+                        onclick="openConfirmModal({
+                            title: 'Delete this version?',
+                            message: 'This will remove only this version from the on-page Previous Versions list.',
+                            confirmText: 'Delete Version',
+                            formId: 'delete_version_form_{{ loop.index0 }}'
+                        }, this)"
+                    >
+                        Delete Version
+                    </button>
+                </form>
+
+                <button
+                    type="button"
+                    class="compare-button"
+                    onclick="toggleCompareView('compare_view_{{ loop.index0 }}', this)"
+                >
+                    Compare to Current
+                </button>
+            </div>
+
+            <div class="section-header">
+                <div class="section-title">Tailored Bullets</div>
+                <button
+                    type="button"
+                    class="copy-button"
+                    data-original-text="Copy"
+                    onclick="copyFromElement('previous_bullets_{{ loop.index0 }}', this)"
+                >
+                    Copy
+                </button>
+            </div>
+            <div id="previous_bullets_{{ loop.index0 }}" class="content-box">
+                {{ version.tailored_bullets }}
+            </div>
+
+            <div class="section-header">
+                <div class="section-title">Cover Letter</div>
+                <button
+                    type="button"
+                    class="copy-button"
+                    data-original-text="Copy"
+                    onclick="copyFromElement('previous_cover_{{ loop.index0 }}', this)"
+                >
+                    Copy
+                </button>
+            </div>
+            <div id="previous_cover_{{ loop.index0 }}" class="content-box">
+                {{ version.cover_letter }}
+            </div>
+
+            <div id="compare_view_{{ loop.index0 }}" class="compare-view hidden">
+                <div class="compare-header">
+                    <h3>Current vs Version {{ previous_versions|length - loop.index0 }}</h3>
+                </div>
+
+                <div class="compare-grid">
+                    <div class="compare-column current-column">
+                        <div class="compare-column-title">Current</div>
+
+                        <div class="compare-section" data-compare-group="job_title">
+                            <div class="compare-label">Detected Job Title</div>
+                            <div class="compare-box compare-text" data-compare-role="current">{{ job_title or "Not detected" }}</div>
+                        </div>
+
+                        <div class="compare-section" data-compare-group="company_name">
+                            <div class="compare-label">Detected Company</div>
+                            <div class="compare-box compare-text" data-compare-role="current">{{ company_name or "Not detected" }}</div>
+                        </div>
+
+                        <div class="compare-section" data-compare-group="tailored_bullets">
+                            <div class="compare-label">Tailored Bullets</div>
+                            <div class="compare-box compare-text" data-compare-role="current">{{ tailored_bullets or "No current bullets available." }}</div>
+                        </div>
+
+                        <div class="compare-section" data-compare-group="cover_letter">
+                            <div class="compare-label">Cover Letter</div>
+                            <div class="compare-box compare-text" data-compare-role="current">{{ cover_letter or "No current cover letter available." }}</div>
+                        </div>
+                    </div>
+
+                    <div class="compare-column previous-column">
+                        <div class="compare-column-title">Previous</div>
+
+                        <div class="compare-section" data-compare-group="job_title">
+                            <div class="compare-label">Detected Job Title</div>
+                            <div class="compare-box compare-text" data-compare-role="previous">{{ version.job_title or "Not detected" }}</div>
+                        </div>
+
+                        <div class="compare-section" data-compare-group="company_name">
+                            <div class="compare-label">Detected Company</div>
+                            <div class="compare-box compare-text" data-compare-role="previous">{{ version.company_name or "Not detected" }}</div>
+                        </div>
+
+                        <div class="compare-section" data-compare-group="tailored_bullets">
+                            <div class="compare-label">Tailored Bullets</div>
+                            <div class="compare-box compare-text" data-compare-role="previous">{{ version.tailored_bullets or "No previous bullets available." }}</div>
+                        </div>
+
+                        <div class="compare-section" data-compare-group="cover_letter">
+                            <div class="compare-label">Cover Letter</div>
+                            <div class="compare-box compare-text" data-compare-role="previous">{{ version.cover_letter or "No previous cover letter available." }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function getLineCounts(lines) {
+        const counts = new Map();
+        lines.forEach((line) => {
+            counts.set(line, (counts.get(line) || 0) + 1);
+        });
+        return counts;
+    }
+
+    function renderDiffLines(box, ownText, otherText, cssClass) {
+        const ownLines = ownText.replace(/\r\n/g, "\n").split("\n");
+        const otherLines = otherText.replace(/\r\n/g, "\n").split("\n");
+
+        const otherCounts = getLineCounts(otherLines);
+        const usedCounts = new Map();
+
+        const html = ownLines.map((line) => {
+            const normalized = line;
+            const alreadyUsed = usedCounts.get(normalized) || 0;
+            const available = otherCounts.get(normalized) || 0;
+            const isDifferent = alreadyUsed >= available;
+
+            usedCounts.set(normalized, alreadyUsed + 1);
+
+            const safeLine = line.length ? escapeHtml(line) : "&nbsp;";
+            const lineClass = isDifferent ? `diff-line ${cssClass}` : "diff-line";
+
+            return `<div class="${lineClass}">${safeLine}</div>`;
+        }).join("");
+
+        box.innerHTML = html;
+    }
+
+    function applyComparisonDiffs(compareView) {
+        if (!compareView || compareView.dataset.diffApplied === "true") {
+            return;
+        }
+
+        const groups = ["job_title", "company_name", "tailored_bullets", "cover_letter"];
+
+        groups.forEach((groupName) => {
+            const currentBox = compareView.querySelector(
+                `.compare-section[data-compare-group="${groupName}"] [data-compare-role="current"]`
+            );
+            const previousBox = compareView.querySelector(
+                `.compare-section[data-compare-group="${groupName}"] [data-compare-role="previous"]`
+            );
+
+            if (!currentBox || !previousBox) {
+                return;
+            }
+
+            const currentText = currentBox.textContent.trim();
+            const previousText = previousBox.textContent.trim();
+
+            if (groupName === "job_title" || groupName === "company_name") {
+                if (currentText !== previousText) {
+                    currentBox.classList.add("diff-current-box");
+                    previousBox.classList.add("diff-previous-box");
+                }
+                return;
+            }
+
+            renderDiffLines(currentBox, currentText, previousText, "diff-current");
+            renderDiffLines(previousBox, previousText, currentText, "diff-previous");
+        });
+
+        compareView.dataset.diffApplied = "true";
+    }
+
+    function toggleCompareView(compareId, button) {
+        const compareView = document.getElementById(compareId);
+        if (!compareView) {
+            return;
+        }
+
+        const isHidden = compareView.classList.contains("hidden");
+
+        if (isHidden) {
+            compareView.classList.remove("hidden");
+            applyComparisonDiffs(compareView);
+            button.textContent = "Hide Comparison";
+            button.classList.add("active");
+        } else {
+            compareView.classList.add("hidden");
+            button.textContent = "Compare to Current";
+            button.classList.remove("active");
+        }
+    }
+</script>
+
+{% endblock %}

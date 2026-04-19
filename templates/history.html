@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+
+    <!--
+        This page is the APPLICATION HISTORY page only.
+
+        Important:
+        - It should receive `applications`
+        - It should NOT receive interview session data
+        - It is rendered by the /history route in main.py
+    -->
+    <div class="section-header">
+        <div>
+            <h1 class="page-heading">Application History</h1>
+            <p class="page-subtext">
+                Review your previously generated resumes and cover letters.
+            </p>
+        </div>
+        <a href="{{ url_for('index') }}">Back to Home</a>
+    </div>
+
+    {% if applications %}
+        {% for app in applications %}
+            <div class="card">
+
+                <!--
+                    Clickable card header for collapsing/expanding
+                    one saved application record.
+                -->
+                <div class="history-card-header clickable"
+                     onclick="toggleApp('{{ app.id }}')">
+
+                    <div>
+                        <h2 class="history-card-title">
+                            Application #{{ app.id }}
+                        </h2>
+                    </div>
+
+                    <div class="history-actions">
+                        <span class="collapse-indicator"
+                              id="indicator-{{ app.id }}">
+                            Show
+                        </span>
+
+                        <!--
+                            Delete action for one application-history item.
+                            event.stopPropagation() prevents the whole card
+                            from toggling open/closed when the button is clicked.
+                        -->
+                        <form method="POST"
+                              action="{{ url_for('delete_application') }}"
+                              class="inline-action-form"
+                              onclick="event.stopPropagation();">
+
+                            <input type="hidden"
+                                   name="application_id"
+                                   value="{{ app.id }}">
+
+                            <button type="submit" class="small danger-button">
+                                Delete
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!--
+                    Hidden collapsible content for the saved application.
+                -->
+                <div class="history-content hidden"
+                     id="content-{{ app.id }}">
+
+                    <div class="history-section">
+                        <div class="section-title">Resume Text</div>
+                        <div class="content-box">
+                            {{ app.resume_text }}
+                        </div>
+                    </div>
+
+                    <div class="history-section">
+                        <div class="section-title">Job Posting</div>
+                        <div class="content-box">
+                            {{ app.job_posting }}
+                        </div>
+                    </div>
+
+                    <div class="history-section">
+                        <div class="section-title">Tailored Resume Bullets</div>
+                        <div class="content-box">
+                            {{ app.tailored_bullets }}
+                        </div>
+                    </div>
+
+                    <div class="history-section">
+                        <div class="section-title">Cover Letter</div>
+                        <div class="content-box">
+                            {{ app.cover_letter }}
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <h2>No saved applications yet</h2>
+            <p>
+                Generate your first tailored resume and cover letter and it will appear here.
+            </p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+/*
+    Toggle one application-history card open or closed.
+
+    This function belongs only to history.html and only controls
+    application-history cards.
+*/
+function toggleApp(id) {
+    const content = document.getElementById("content-" + id);
+    const indicator = document.getElementById("indicator-" + id);
+
+    if (!content || !indicator) return;
+
+    const isHidden = content.classList.contains("hidden");
+
+    if (isHidden) {
+        content.classList.remove("hidden");
+        indicator.textContent = "Hide";
+    } else {
+        content.classList.add("hidden");
+        indicator.textContent = "Show";
+    }
+}
+</script>
+
+{% endblock %}

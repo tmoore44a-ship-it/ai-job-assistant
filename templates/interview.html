@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container interview-page">
+
+    <!--
+        Page-scoped CSS only for Interview Coach.
+
+        Why this is here:
+        - Generated answers and feedback need to wrap correctly.
+        - We are keeping this scoped to Interview Coach so we do not accidentally
+          affect the rest of the app.
+
+        The key rules are:
+        - white-space: pre-wrap
+        - overflow-wrap: anywhere
+        - word-break: break-word
+
+        Together they preserve readable formatting but prevent horizontal overflow.
+    -->
+    <style>
+        .interview-page .generated-output,
+        .interview-page .generated-output pre,
+        .interview-page .coach-panel,
+        .interview-page .content-box,
+        .interview-page .question-text {
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .interview-page .generated-output pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-x: auto;
+            margin: 0;
+        }
+
+        .interview-page .coach-panel {
+            overflow: hidden;
+        }
+
+        .interview-page textarea,
+        .interview-page input[type="hidden"] {
+            max-width: 100%;
+        }
+    </style>
+
+    <!-- ============================= -->
+    <!-- HEADER -->
+    <!-- ============================= -->
+    <div class="interview-hero">
+        <div class="section-header">
+            <div>
+                <h1 class="page-heading">Interview Coach</h1>
+                <p class="page-subtext">
+                    Paste your resume and the job posting to generate tailored interview questions, practice your answers, and get AI feedback.
+                </p>
+            </div>
+            <a href="{{ url_for('interview_history') }}">Interview History</a>
+        </div>
+    </div>
+
+    <!-- ============================= -->
+    <!-- FLASH MESSAGES -->
+    <!-- ============================= -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- ============================= -->
+    <!-- INPUT FORM -->
+    <!-- ============================= -->
+    <div class="card interview-input-panel">
+        <form method="POST" action="{{ url_for('interview') }}">
+
+            <!--
+                CRITICAL HIDDEN STATE
+                ---------------------
+                This value links later answer/feedback attempts back to the
+                current interview session in the database.
+            -->
+            <input type="hidden" name="current_interview_session_id" value="{{ current_interview_session_id or '' }}">
+
+            <div class="interview-input-grid">
+                <div class="form-group">
+                    <label for="resume_text">Resume Text</label>
+                    <textarea id="resume_text" name="resume_text" rows="12">{{ resume_text or '' }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="job_posting">Job Posting</label>
+                    <textarea id="job_posting" name="job_posting" rows="12">{{ job_posting or '' }}</textarea>
+                </div>
+            </div>
+
+            <div class="button-row">
+                <button type="submit" name="action" value="generate_questions">
+                    Generate Interview Questions
+                </button>
+
+                {% if current_interview_session_id %}
+                    <a href="{{ url_for('interview_history') }}">View Saved Session</a>
+                {% endif %}
+            </div>
+        </form>
+
+        <p class="help-text">
+            Generate questions first, then use <strong>Generate Answer</strong> for a sample response or type your own answer and click <strong>Get Feedback</strong>.
+        </p>
+    </div>
+
+    <!--
+        We prefer interview_questions first because that is the current page
+        question set. If it is empty, fall back to all_questions.
+    -->
+    {% set questions_source = interview_questions or all_questions %}
+
+    {% if questions_source %}
+        <div class="card interview-results-panel">
+            <div class="section-header">
+                <h2>Practice Questions</h2>
+                {% if current_interview_session_id %}
+                    <span class="version-count">Session #{{ current_interview_session_id }}</span>
+                {% endif %}
+            </div>
+
+            <div class="question-list">
+                {% for q in questions_source.split('\n') if q.strip() %}
+                    {% set clean_q = q.strip() %}
+                    <div class="question-card">
+
+                        <!-- ============================= -->
+                        <!-- QUESTION HEADER -->
+                        <!-- ============================= -->
+                        <div class="question-card-header">
+                            <div class="question-number">{{ loop.index }}</div>
+
+                            <div class="question-title-wrap">
+                                <div class="question-label">Interview Question</div>
+                                <p class="question-text">{{ clean_q }}</p>
+                            </div>
+                        </div>
+
+                        <!-- ============================= -->
+                        <!-- GENERATE ANSWER -->
+                        <!-- ============================= -->
+                        <div class="question-actions">
+                            <form method="POST" action="{{ url_for('interview') }}" class="question-action-form secondary-action">
+                                <input type="hidden" name="action" value="generate_answer">
+                                <input type="hidden" name="current_interview_session_id" value="{{ current_interview_session_id or '' }}">
+
+                                <!--
+                                    Hidden state preserved across POST requests.
+
+                                    Easy-to-break area:
+                                    If these fields stop being posted back, the
+                                    Interview Coach will lose the current working
+                                    state after each button click.
+                                -->
+                                <input type="hidden" name="question" value="{{ clean_q }}">
+                                <input type="hidden" name="resume_text" value="{{ resume_text }}">
+                                <input type="hidden" name="job_posting" value="{{ job_posting }}">
+                                <input type="hidden" name="all_questions" value="{{ questions_source }}">
+
+                                <button type="submit">Generate Answer</button>
+                            </form>
+                        </div>
+
+                        <!-- ============================= -->
+                        <!-- FEEDBACK FORM -->
+                        <!-- ============================= -->
+                        <form method="POST" action="{{ url_for('interview') }}" class="feedback-form">
+                            <input type="hidden" name="action" value="get_feedback">
+                            <input type="hidden" name="current_interview_session_id" value="{{ current_interview_session_id or '' }}">
+
+                            <input type="hidden" name="question" value="{{ clean_q }}">
+                            <input type="hidden" name="resume_text" value="{{ resume_text }}">
+                            <input type="hidden" name="job_posting" value="{{ job_posting }}">
+                            <input type="hidden" name="all_questions" value="{{ questions_source }}">
+
+                            <div class="question-answer-box">
+                                <label for="user_answer_{{ loop.index }}">Your Answer</label>
+                                <textarea
+                                    id="user_answer_{{ loop.index }}"
+                                    name="user_answer_text"
+                                    rows="7"
+                                    placeholder="Type your interview answer here...">{% if feedback_question and feedback_question.strip() == clean_q %}{{ user_answer_text or '' }}{% endif %}</textarea>
+                            </div>
+
+                            <div class="feedback-submit-row">
+                                <button type="submit">Get Feedback</button>
+                            </div>
+                        </form>
+
+                        <!-- ============================= -->
+                        <!-- GENERATED ANSWER DISPLAY -->
+                        <!-- ============================= -->
+                        {% if generated_answer and selected_question and selected_question.strip() == clean_q %}
+                            <div class="coach-panel">
+                                <h3>AI Sample Answer</h3>
+                                <div class="coach-panel-meta">Generated for this question</div>
+                                <div class="generated-output">
+                                    <pre>{{ generated_answer }}</pre>
+                                </div>
+                            </div>
+                        {% endif %}
+
+                        <!-- ============================= -->
+                        <!-- FEEDBACK DISPLAY -->
+                        <!-- ============================= -->
+                        {% if feedback_output and feedback_question and feedback_question.strip() == clean_q %}
+                            <div class="coach-panel">
+                                <h3>AI Feedback</h3>
+                                <div class="coach-panel-meta">Feedback on your answer</div>
+                                <div class="generated-output">
+                                    <pre>{{ feedback_output }}</pre>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+
+    <!--
+        IMPORTANT UX CLEANUP:
+        The older version of this page showed generated answers and feedback
+        a second time at the bottom of the page.
+
+        That duplication made the page feel cluttered and confusing, because
+        the same output was already shown directly under the matching question.
+
+        We intentionally removed those duplicate bottom sections and now keep
+        the output only inside each question card.
+    -->
+</div>
+{% endblock %}

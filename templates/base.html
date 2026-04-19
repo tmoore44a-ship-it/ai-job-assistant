@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}AI Job Assistant{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+
+    <div id="toast-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="toast toast-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="container">
+        <div class="topbar">
+            <div class="topbar-left">
+                <h1 class="app-title">AI Job Application Assistant</h1>
+                {% if session.username %}
+                    <div class="welcome">Welcome, {{ session.username }}</div>
+                {% endif %}
+            </div>
+
+            <div class="nav-links">
+                {% if session.user_id %}
+                    <a href="{{ url_for('index') }}">Home</a>
+                    <a href="{{ url_for('history') }}">History</a>
+                    <a href="{{ url_for('interview') }}">Interview Coach</a>
+                    <a href="{{ url_for('logout') }}">Logout</a>
+                {% endif %}
+            </div>
+        </div>
+
+        <main class="page-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <div id="confirm_modal_overlay" class="modal-overlay hidden" aria-hidden="true">
+        <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm_modal_title">
+            <div class="confirm-modal-header">
+                <h3 id="confirm_modal_title">Confirm action</h3>
+            </div>
+            <div class="confirm-modal-body">
+                <p id="confirm_modal_message">Are you sure?</p>
+            </div>
+            <div class="confirm-modal-actions">
+                <button type="button" class="secondary" onclick="closeConfirmModal()">Cancel</button>
+                <button type="button" id="confirm_modal_submit" class="danger-button">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let confirmModalFormId = null;
+        let confirmModalLastTrigger = null;
+        let confirmModalClosing = false;
+
+        function setupToasts() {
+            const toasts = document.querySelectorAll(".toast");
+
+            toasts.forEach((toast, index) => {
+                setTimeout(() => {
+                    toast.classList.add("show");
+                }, index * 80);
+
+                setTimeout(() => {
+                    toast.classList.remove("show");
+                    toast.classList.add("hide");
+                    setTimeout(() => toast.remove(), 300);
+                }, 4000);
+            });
+        }
+
+        async function copyFromElement(id, btn) {
+            const el = document.getElementById(id);
+            if (!el) return;
+
+            const text = el.innerText || el.textContent || "";
+            const original = btn.dataset.originalText || btn.textContent;
+
+            try {
+                await navigator.clipboard.writeText(text.trim());
+                btn.textContent = "Copied!";
+                btn.classList.add("copied");
+
+                setTimeout(() => {
+                    btn.textContent = original;
+                    btn.classList.remove("copied");
+                }, 1500);
+            } catch {
+                btn.textContent = "Copy failed";
+                setTimeout(() => {
+                    btn.textContent = original;
+                }, 1500);
+            }
+        }
+
+        function setupLoadingForms() {
+            document.querySelectorAll("[data-loading-form]").forEach((form) => {
+                form.addEventListener("submit", () => {
+                    const btn = form.querySelector("[data-loading-button]");
+                    if (!btn) return;
+
+                    btn.disabled = true;
+                    btn.dataset.originalText = btn.textContent;
+                    btn.textContent = form.getAttribute("data-loading-text") || "Loading...";
+                    btn.classList.add("is-loading");
+                });
+            });
+        }
+
+        function toggleHistoryCard(id, header) {
+            const el = document.getElementById(id);
+            if (!el) return;
+
+            const indicator = header.querySelector(".collapse-indicator");
+
+            if (el.classList.contains("hidden")) {
+                el.classList.remove("hidden");
+                if (indicator) indicator.textContent = "▲";
+            } else {
+                el.classList.add("hidden");
+                if (indicator) indicator.textContent = "▼";
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function escapeRegExp(text) {
+            return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        }
+
+        function initializeSearchableContent() {
+            const blocks = document.querySelectorAll(".searchable-content");
+
+            blocks.forEach((block) => {
+                if (!block.dataset.originalText) {
+                    block.dataset.originalText = block.textContent || "";
+                }
+            });
+        }
+
+        function highlightHistoryMatches(query) {
+            const blocks = document.querySelectorAll(".searchable-content");
+            const trimmedQuery = query.trim();
+
+            blocks.forEach((block) => {
+                const originalText = block.dataset.originalText || block.textContent || "";
+
+                if (!trimmedQuery) {
+                    block.textContent = originalText;
+                    return;
+                }
+
+                const regex = new RegExp(`(${escapeRegExp(trimmedQuery)})`, "gi");
+                const highlightedHtml = escapeHtml(originalText).replace(
+                    regex,
+                    '<mark class="history-hit">$1</mark>'
+                );
+
+                block.innerHTML = highlightedHtml;
+            });
+        }
+
+        function filterHistoryCards() {
+            const input = document.getElementById("history_search");
+            const cards = document.querySelectorAll("[data-history-card='true']");
+            const empty = document.getElementById("history_empty_search_state");
+            const status = document.getElementById("history_search_status");
+
+            if (!input || !cards.length) return;
+
+            const query = input.value.toLowerCase().trim();
+            let visible = 0;
+
+            cards.forEach((card) => {
+                const text = (card.dataset.historySearch || "").toLowerCase();
+                const match = !query || text.includes(query);
+                const content = card.querySelector(".history-content");
+                const indicator = card.querySelector(".collapse-indicator");
+
+                if (match) {
+                    card.classList.remove("hidden-history-card");
+                    visible++;
+
+                    if (query && content && content.classList.contains("hidden")) {
+                        content.classList.remove("hidden");
+                        if (indicator) indicator.textContent = "▲";
+                    }
+                } else {
+                    card.classList.add("hidden-history-card");
+                }
+            });
+
+            highlightHistoryMatches(query);
+
+            if (status) {
+                status.textContent = `Showing ${visible} of ${cards.length} applications`;
+            }
+
+            if (empty) {
+                empty.classList.toggle("hidden", visible !== 0);
+            }
+        }
+
+        function clearHistorySearch() {
+            const input = document.getElementById("history_search");
+            const cards = document.querySelectorAll("[data-history-card='true']");
+
+            if (!input) return;
+
+            input.value = "";
+
+            cards.forEach((card) => {
+                card.classList.remove("hidden-history-card");
+
+                const content = card.querySelector(".history-content");
+                const indicator = card.querySelector(".collapse-indicator");
+
+                if (content) {
+                    content.classList.add("hidden");
+                }
+
+                if (indicator) {
+                    indicator.textContent = "▼";
+                }
+            });
+
+            highlightHistoryMatches("");
+
+            const empty = document.getElementById("history_empty_search_state");
+            const status = document.getElementById("history_search_status");
+
+            if (empty) {
+                empty.classList.add("hidden");
+            }
+
+            if (status) {
+                status.textContent = `Showing ${cards.length} of ${cards.length} applications`;
+            }
+
+            input.focus();
+        }
+
+        function openConfirmModal(config, trigger) {
+            const overlay = document.getElementById("confirm_modal_overlay");
+            document.getElementById("confirm_modal_title").textContent = config.title;
+            document.getElementById("confirm_modal_message").textContent = config.message;
+            document.getElementById("confirm_modal_submit").textContent = config.confirmText;
+
+            confirmModalFormId = config.formId;
+            confirmModalLastTrigger = trigger;
+
+            overlay.classList.remove("hidden");
+            overlay.classList.add("open");
+            document.body.classList.add("modal-open");
+        }
+
+        function closeConfirmModal() {
+            const overlay = document.getElementById("confirm_modal_overlay");
+            overlay.classList.remove("open");
+            overlay.classList.add("hidden");
+            document.body.classList.remove("modal-open");
+        }
+
+        function submitConfirmModal() {
+            const form = document.getElementById(confirmModalFormId);
+            if (form) form.submit();
+        }
+
+        function setupAutosave() {
+            const KEY = "job_app_autosave_v1";
+
+            function getData() {
+                try {
+                    return JSON.parse(localStorage.getItem(KEY) || "{}");
+                } catch {
+                    return {};
+                }
+            }
+
+            function save(data) {
+                localStorage.setItem(KEY, JSON.stringify(data));
+            }
+
+            const resume = document.getElementById("resume_text");
+            const job = document.getElementById("job_posting");
+
+            if (!resume && !job) {
+                return;
+            }
+
+            const data = getData();
+
+            if (resume && typeof data.resume_text === "string" && data.resume_text.trim()) {
+                resume.value = data.resume_text;
+            }
+
+            if (job && typeof data.job_posting === "string" && data.job_posting.trim()) {
+                job.value = data.job_posting;
+            }
+
+            function update() {
+                save({
+                    resume_text: resume ? resume.value : "",
+                    job_posting: job ? job.value : ""
+                });
+            }
+
+            if (resume) {
+                resume.addEventListener("input", update);
+            }
+
+            if (job) {
+                job.addEventListener("input", update);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            setupToasts();
+            setupLoadingForms();
+            setupAutosave();
+            initializeSearchableContent();
+
+            const confirmBtn = document.getElementById("confirm_modal_submit");
+            if (confirmBtn) {
+                confirmBtn.addEventListener("click", submitConfirmModal);
+            }
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,22 @@
+# Secrets
+.env
+
+# Python environments
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Database
+users.db
+*.sqlite
+*.sqlite3
+
+# IDE / OS
+.idea/
+.DS_Store
+
+# Optional local output files
+resume_output.txt

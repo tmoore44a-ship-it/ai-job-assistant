@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+
+    <!--
+        This page is the INTERVIEW SESSION HISTORY page only.
+
+        Important:
+        - It should receive `interview_sessions`
+        - It should NOT receive application-history rows
+        - It is rendered by the /interview_history route in main.py
+    -->
+    <div class="section-header">
+        <div>
+            <h1 class="page-heading">Interview History</h1>
+            <p class="page-subtext">
+                Review your saved interview practice sessions, generated answers, and feedback attempts.
+            </p>
+        </div>
+        <a href="{{ url_for('interview') }}">Back to Interview Coach</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    {% if interview_sessions %}
+        {% for interview_session in interview_sessions %}
+            <div class="card">
+
+                <!--
+                    Clickable card header for one interview session.
+                -->
+                <div class="history-card-header clickable"
+                     onclick="toggleInterviewSession('session-{{ interview_session.id }}', 'indicator-{{ interview_session.id }}')">
+
+                    <div>
+                        <h2 class="history-card-title">
+                            Session #{{ interview_session.id }}
+                        </h2>
+
+                        <div class="version-meta">
+                            <span>Created: {{ interview_session.created_at }}</span>
+                            <span>Questions: {{ interview_session.questions|length }}</span>
+                            <span>Saved Attempts: {{ interview_session.response_count }}</span>
+                        </div>
+                    </div>
+
+                    <div class="history-actions">
+                        <span class="collapse-indicator"
+                              id="indicator-{{ interview_session.id }}">
+                            Show
+                        </span>
+
+                        <!--
+                            Open this saved interview session back in the
+                            Interview Coach page.
+                        -->
+                        <form method="GET"
+                              action="{{ url_for('interview') }}"
+                              class="inline-action-form"
+                              onclick="event.stopPropagation();">
+
+                            <input type="hidden"
+                                   name="session_id"
+                                   value="{{ interview_session.id }}">
+
+                            <button type="submit" class="small secondary">
+                                Open
+                            </button>
+                        </form>
+
+                        <!--
+                            Delete this interview session and its attempt records.
+                        -->
+                        <form method="POST"
+                              action="{{ url_for('delete_interview_session') }}"
+                              class="inline-action-form"
+                              onclick="event.stopPropagation();">
+
+                            <input type="hidden"
+                                   name="session_id"
+                                   value="{{ interview_session.id }}">
+
+                            <button type="submit" class="small danger-button">
+                                Delete
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!--
+                    Hidden collapsible content for this interview session.
+                -->
+                <div class="history-content hidden"
+                     id="session-{{ interview_session.id }}">
+
+                    <div class="history-section">
+                        <div class="section-title">Resume Text</div>
+                        <div class="content-box">
+                            {{ interview_session.resume_text }}
+                        </div>
+                    </div>
+
+                    <div class="history-section">
+                        <div class="section-title">Job Posting</div>
+                        <div class="content-box">
+                            {{ interview_session.job_posting }}
+                        </div>
+                    </div>
+
+                    <div class="history-section">
+                        <div class="section-title">Interview Questions</div>
+                        <div class="content-box">
+                            {% for question in interview_session.questions %}
+                                {{ question }}{% if not loop.last %}<br><br>{% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!--
+                        Responses are grouped by question text.
+                        Each question can have multiple attempts.
+                    -->
+                    {% if interview_session.responses %}
+                        <div class="history-section">
+                            <div class="section-title">
+                                Attempts by Question
+                            </div>
+
+                            {% for question, attempts in interview_session.responses.items() %}
+                                <div class="version-block">
+
+                                    <div class="compare-label">Question</div>
+                                    <div class="content-box">
+                                        {{ question }}
+                                    </div>
+
+                                    {% for attempt in attempts %}
+                                        <div class="compare-label">
+                                            Attempt {{ loop.index }}
+                                        </div>
+
+                                        {% if attempt.generated_answer %}
+                                            <div class="compare-label">
+                                                Generated Answer
+                                            </div>
+                                            <div class="content-box">
+                                                {{ attempt.generated_answer }}
+                                            </div>
+                                        {% endif %}
+
+                                        {% if attempt.user_answer_text %}
+                                            <div class="compare-label">
+                                                Your Answer
+                                            </div>
+                                            <div class="content-box">
+                                                {{ attempt.user_answer_text }}
+                                            </div>
+                                        {% endif %}
+
+                                        {% if attempt.feedback_output %}
+                                            <div class="compare-label">
+                                                Feedback
+                                            </div>
+                                            <div class="content-box">
+                                                {{ attempt.feedback_output }}
+                                            </div>
+                                        {% endif %}
+
+                                        <div class="help-text">
+                                            Saved: {{ attempt.updated_at }}
+                                        </div>
+
+                                        {% if not loop.last %}
+                                            <hr>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="history-section">
+                            <div class="empty-state">
+                                <p>No answers or feedback saved yet for this session.</p>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <h2>No interview sessions yet</h2>
+            <p>
+                Generate interview questions in Interview Coach and they will appear here.
+            </p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+/*
+    Toggle one interview-history card open or closed.
+
+    This function belongs only to interview_history.html and only controls
+    interview-session cards.
+*/
+function toggleInterviewSession(contentId, indicatorId) {
+    const content = document.getElementById(contentId);
+    const indicator = document.getElementById(indicatorId);
+
+    if (!content || !indicator) return;
+
+    const isHidden = content.classList.contains("hidden");
+
+    if (isHidden) {
+        content.classList.remove("hidden");
+        indicator.textContent = "Hide";
+    } else {
+        content.classList.add("hidden");
+        indicator.textContent = "Show";
+    }
+}
+</script>
+
+{% endblock %}
