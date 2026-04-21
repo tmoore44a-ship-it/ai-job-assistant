@@ -34,6 +34,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 load_dotenv()
 
+DATABASE = os.getenv("DATABASE_PATH", "users.db")
+
 
 def env_flag(name, default=False):
     """
