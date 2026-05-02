@@ -70,6 +70,30 @@ log_level = logging.DEBUG if FLASK_DEBUG else logging.INFO
 logging.basicConfig(level=log_level)
 app.logger.setLevel(log_level)
 
+# Keep your app logs readable by reducing noisy third-party DEBUG output.
+# This matters locally because FLASK_DEBUG can make OpenAI/httpx/httpcore very chatty.
+logging.getLogger("openai").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+
+@app.before_request
+def log_request_info():
+    """
+    Log every incoming request with the current user when available.
+
+    This gives you a clean trace in local terminal output and Render logs:
+    Request: POST /index | User: 1
+
+    Do not log passwords, API keys, resume text, job postings, or other private form data.
+    """
+    app.logger.info(
+        "Request: %s %s | User: %s",
+        request.method,
+        request.path,
+        session.get("user_id", "anonymous"),
+    )
+
 
 # -----------------------------
 # Database Helpers
@@ -1745,6 +1769,7 @@ def index():
     if request.method == "POST":
         context = normalize_form_data()
         action = request.form.get("action", "generate").strip()
+        app.logger.info("INDEX action triggered: %s", action)
 
         if action == "extract_pdf":
             uploaded_resume = request.files.get("resume_pdf")
@@ -1986,6 +2011,13 @@ def index():
                 )
                 db.commit()
 
+                app.logger.info(
+                    "Application generated for user %s | Job: %s at %s",
+                    session.get("user_id"),
+                    job_title,
+                    company_name,
+                )
+
                 if action == "regenerate":
                     flash("New version generated and previous result kept below.", "success")
                 else:
@@ -2043,6 +2075,12 @@ def delete_application():
         flash("Invalid application.", "error")
         return redirect(url_for("history"))
 
+    app.logger.info(
+        "Deleting application %s for user %s",
+        app_id,
+        session.get("user_id"),
+    )
+
     try:
         db = get_db()
         db.execute(
@@ -2099,6 +2137,12 @@ def delete_interview_session():
     if not interview_session:
         flash("Interview session not found.", "error")
         return redirect(url_for("interview_history"))
+
+    app.logger.info(
+        "Deleting interview session %s for user %s",
+        session_id,
+        session.get("user_id"),
+    )
 
     try:
         db = get_db()
@@ -2188,6 +2232,7 @@ def interview():
     context["interview_questions"] = context["all_questions"]
 
     action = request.form.get("action", "").strip()
+    app.logger.info("INTERVIEW action triggered: %s", action)
 
     if action == "generate_questions":
         if not context["resume_text"] or not context["job_posting"]:
@@ -2203,6 +2248,11 @@ def interview():
             return render_interview_with_context(context)
 
         try:
+            app.logger.info(
+                "Generating interview questions for user %s",
+                session.get("user_id"),
+            )
+
             interview_questions = generate_interview_questions(
                 context["resume_text"],
                 context["job_posting"],
@@ -2249,6 +2299,11 @@ def interview():
             return render_interview_with_context(context)
 
         try:
+            app.logger.info(
+                "Generating interview answer for user %s",
+                session.get("user_id"),
+            )
+
             context["current_interview_session_id"] = str(
                 ensure_interview_session_id(
                     context["current_interview_session_id"],
@@ -2305,6 +2360,11 @@ def interview():
             return render_interview_with_context(context)
 
         try:
+            app.logger.info(
+                "Generating interview feedback for user %s",
+                session.get("user_id"),
+            )
+
             context["current_interview_session_id"] = str(
                 ensure_interview_session_id(
                     context["current_interview_session_id"],
@@ -2355,6 +2415,10 @@ if __name__ == "__main__":
         port=int(os.getenv("PORT", 5000)),
         debug=FLASK_DEBUG
     )
+
+
+
+
 
 
 
